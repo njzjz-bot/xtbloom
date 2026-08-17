@@ -23,23 +23,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Apply agent worktree patch
+      - name: Apply complete agent worktree patch
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
           git config --global --add safe.directory "$repo"
-          cat "$repo"/.github/agent/386.patch.b64.* | base64 -d | gzip -d > /tmp/386.patch
-          cat "$repo"/.github/agent/386.delta.patch.b64 | base64 -d | gzip -d > /tmp/386.delta.patch
-          cat "$repo"/.github/agent/386.extra.patch.b64 | base64 -d | gzip -d > /tmp/386.extra.patch
-          cat "$repo"/.github/agent/386.runtime.patch.b64 | base64 -d | gzip -d > /tmp/386.runtime.patch
-          git -C "$repo" apply --check /tmp/386.patch
-          git -C "$repo" apply /tmp/386.patch
-          git -C "$repo" apply --check /tmp/386.delta.patch
-          git -C "$repo" apply /tmp/386.delta.patch
-          git -C "$repo" apply --check /tmp/386.extra.patch
-          git -C "$repo" apply /tmp/386.extra.patch
-          git -C "$repo" apply --check /tmp/386.runtime.patch
-          git -C "$repo" apply /tmp/386.runtime.patch
+          cat "$repo"/.github/agent/full.* | base64 -d | gzip -d > /tmp/386-full.patch
+          git -C "$repo" apply --check /tmp/386-full.patch
+          git -C "$repo" apply /tmp/386-full.patch
           git -C "$repo" diff --check
       - name: Configure CUDA compiler check
         run: |
