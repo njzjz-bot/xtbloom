@@ -23,14 +23,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Apply complete agent worktree patch
+      - name: Apply exact agent worktree patch
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
           git config --global --add safe.directory "$repo"
-          cat "$repo"/.github/agent/full2.* | base64 -d | gzip -d > /tmp/386-full.patch
-          git -C "$repo" apply --check /tmp/386-full.patch
-          git -C "$repo" apply /tmp/386-full.patch
+          cat "$repo"/.github/agent/x4.* | base64 -d | gzip -d > /tmp/386.patch
+          git -C "$repo" apply --check /tmp/386.patch
+          git -C "$repo" apply /tmp/386.patch
           git -C "$repo" diff --check
       - name: Configure CUDA compiler check
         run: |
