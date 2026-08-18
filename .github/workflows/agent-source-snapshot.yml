@@ -32,6 +32,16 @@ jobs:
           git -C "$repo" apply --check /tmp/386.patch
           git -C "$repo" apply /tmp/386.patch
           git -C "$repo" diff --check
+      - name: Export exact patched worktree
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-gfn1-cuda-worktree
+          path: |
+            /__w/xtbloom/xtbloom
+            !/__w/xtbloom/xtbloom/.git
+            !/__w/xtbloom/xtbloom/.github/agent
+          include-hidden-files: true
+          retention-days: 1
       - name: Configure CUDA compiler check
         run: |
           repo=/__w/xtbloom/xtbloom
