@@ -64,10 +64,9 @@ jobs:
               -DCMAKE_CUDA_ARCHITECTURES=80 &&
             cmake --build "$repo/build-agent" --target xtbloom_cuda_backend --parallel 2
           } 2>&1 | tee /tmp/cuda-build.log
-          rc=${PIPESTATUS[0]}
-          echo "$rc" > /tmp/cuda-build.rc
+          echo "${PIPESTATUS[0]}" > /tmp/cuda-build.rc
           exit 0
-      - name: Promote compiled worktree or publish failure log
+      - name: Publish result branch
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
@@ -75,20 +74,15 @@ jobs:
           git config user.name "njzjz-bot"
           git config user.email "48687836+njzjz-bot@users.noreply.github.com"
           rc="$(cat /tmp/cuda-build.rc)"
-          if [ "$rc" -eq 0 ]; then
-            rm -rf build-agent .github/agent .github/workflows/agent-source-snapshot.yml
-            git add -A
-            git commit -m "feat: port GFN1 CUDA execution foundation" \
-              -m "Agent: ChatGPT" \
-              -m "Model: GPT-5.6 Sol"
-            git push origin HEAD:feat/386-gfn1-cuda
-          else
-            cp /tmp/cuda-build.log .github/agent/last-build.log
-            git add -f .github/agent/last-build.log
-            git commit --only -m "ci: record GFN1 CUDA compile failure" \
-              -m "Agent: ChatGPT" \
-              -m "Model: GPT-5.6 Sol" \
-              -- .github/agent/last-build.log
-            git push origin HEAD:feat/386-gfn1-cuda
-            exit "$rc"
+          rm -rf build-agent .github/agent .github/workflows/agent-source-snapshot.yml
+          if [ "$rc" -ne 0 ]; then
+            mkdir -p .agent-diagnostics
+            cp /tmp/cuda-build.log .agent-diagnostics/cuda-build.log
           fi
+          git add -A
+          git commit -m "feat: stage GFN1 CUDA execution" \
+            -m "CUDA compile status: $rc" \
+            -m "Agent: ChatGPT" \
+            -m "Model: GPT-5.6 Sol"
+          git push --force origin HEAD:agent/386-cuda-result
+          exit "$rc"
