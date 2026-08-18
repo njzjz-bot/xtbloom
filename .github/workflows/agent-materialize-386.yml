@@ -16,26 +16,33 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Apply exact GFN1 CUDA source patch
+      - name: Diagnose staged patch groups
         shell: bash
         run: |
-          cat .github/agent/x4.* | base64 -d | gzip -d > /tmp/386.patch
-          git apply --check \
-            --exclude='.github/agent/**' \
-            --exclude='.github/workflows/agent-source-snapshot.yml' \
-            /tmp/386.patch
-          git apply \
-            --exclude='.github/agent/**' \
-            --exclude='.github/workflows/agent-source-snapshot.yml' \
-            /tmp/386.patch
-          git diff --check
-          rm -rf .github/agent .github/workflows/agent-source-snapshot.yml
-      - name: Upload exact materialized source
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: agent-386-materialized-source
-          path: |
-            .
-            !.git
-          include-hidden-files: true
-          retention-days: 1
+          set +e
+          check_group() {
+            name="$1"; shift
+            out="/tmp/${name}.gz"
+            cat "$@" | base64 -d > "$out" 2>"/tmp/${name}.b64.err"
+            b64_rc=$?
+            gzip -t "$out" 2>"/tmp/${name}.gz.err"
+            gz_rc=$?
+            printf '%-12s b64=%s gzip=%s bytes=%s\n' "$name" "$b64_rc" "$gz_rc" "$(wc -c < "$out")"
+            if [ "$b64_rc" -ne 0 ]; then cat "/tmp/${name}.b64.err"; fi
+            if [ "$gz_rc" -ne 0 ]; then cat "/tmp/${name}.gz.err"; fi
+          }
+          check_group x4 .github/agent/x4.*
+          check_group full2 .github/agent/full2.*
+          check_group full .github/agent/full.*
+          check_group base386 .github/agent/386.patch.b64.*
+          for f in .github/agent/386.delta.patch.b64 .github/agent/386.extra.patch.b64 .github/agent/386.runtime.patch.b64; do
+            printf '%-28s ' "$f"
+            base64 -d "$f" > /tmp/one.gz 2>/tmp/one.b64.err
+            b64_rc=$?
+            gzip -t /tmp/one.gz 2>/tmp/one.gz.err
+            gz_rc=$?
+            printf 'b64=%s gzip=%s bytes=%s\n' "$b64_rc" "$gz_rc" "$(wc -c < /tmp/one.gz)"
+            [ "$b64_rc" -eq 0 ] || cat /tmp/one.b64.err
+            [ "$gz_rc" -eq 0 ] || cat /tmp/one.gz.err
+          done
+          exit 1
