@@ -9,11 +9,12 @@ permissions:
 
 jobs:
   materialize:
-    if: github.head_ref == 'feat/386-gfn1-cuda'
+    if: github.head_ref == 'agent/386-materialize-input'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: agent/386-materialize-input
           fetch-depth: 0
           persist-credentials: false
       - name: Apply last complete GFN1 CUDA snapshot
