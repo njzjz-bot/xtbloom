@@ -2,7 +2,7 @@ name: Agent materialize 386
 
 on:
   pull_request:
-    branches: [main]
+    branches: [agent/materialize-base]
 
 permissions:
   contents: read
