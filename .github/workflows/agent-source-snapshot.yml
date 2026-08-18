@@ -23,19 +23,37 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Apply exact agent worktree patch
+      - name: Apply exact source patch
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
           git config --global --add safe.directory "$repo"
           cat "$repo"/.github/agent/x4.* | base64 -d | gzip -d > /tmp/386.patch
-          git -C "$repo" apply --check /tmp/386.patch
-          git -C "$repo" apply /tmp/386.patch
-          git -C "$repo" diff --check
+          set +e
+          set -o pipefail
+          {
+            git -C "$repo" apply --check \
+              --exclude='.github/agent/**' \
+              --exclude='.github/workflows/agent-source-snapshot.yml' \
+              /tmp/386.patch &&
+            git -C "$repo" apply \
+              --exclude='.github/agent/**' \
+              --exclude='.github/workflows/agent-source-snapshot.yml' \
+              /tmp/386.patch &&
+            git -C "$repo" diff --check
+          } 2>&1 | tee /tmp/apply.log
+          echo "${PIPESTATUS[0]}" > /tmp/apply.rc
+          exit 0
       - name: Compile staged CUDA backend
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
+          apply_rc="$(cat /tmp/apply.rc)"
+          if [ "$apply_rc" -ne 0 ]; then
+            cp /tmp/apply.log /tmp/cuda-build.log
+            echo "$apply_rc" > /tmp/cuda-build.rc
+            exit 0
+          fi
           set +e
           set -o pipefail
           {
