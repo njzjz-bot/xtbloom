@@ -37,3 +37,4 @@ jobs:
             -m "Agent: ChatGPT" \
             -m "Model: GPT-5.6 Sol"
           git push --force origin HEAD:agent/386-full2-source
+      # Repair trigger for PR #439.
