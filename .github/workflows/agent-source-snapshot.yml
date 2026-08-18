@@ -1,4 +1,4 @@
-name: Agent CUDA compile
+name: Agent GFN1 CUDA staging
 
 on:
   push:
@@ -10,6 +10,35 @@ permissions:
   statuses: write
 
 jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Publish exact source worktree
+        shell: bash
+        run: |
+          cat .github/agent/x4.* | base64 -d | gzip -d > /tmp/386.patch
+          git apply --check \
+            --exclude='.github/agent/**' \
+            --exclude='.github/workflows/agent-source-snapshot.yml' \
+            /tmp/386.patch
+          git apply \
+            --exclude='.github/agent/**' \
+            --exclude='.github/workflows/agent-source-snapshot.yml' \
+            /tmp/386.patch
+          git diff --check
+          rm -rf .github/agent .github/workflows/agent-source-snapshot.yml
+          git config user.name "njzjz-bot"
+          git config user.email "48687836+njzjz-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: stage GFN1 CUDA execution" \
+            -m "Agent: ChatGPT" \
+            -m "Model: GPT-5.6 Sol"
+          git push --force origin HEAD:agent/386-cuda-result
+
   cuda-compile:
     runs-on: ubuntu-24.04
     container:
@@ -23,38 +52,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
       - name: Apply exact source patch
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
           git config --global --add safe.directory "$repo"
           cat "$repo"/.github/agent/x4.* | base64 -d | gzip -d > /tmp/386.patch
-          set +e
-          set -o pipefail
-          {
-            git -C "$repo" apply --check \
-              --exclude='.github/agent/**' \
-              --exclude='.github/workflows/agent-source-snapshot.yml' \
-              /tmp/386.patch &&
-            git -C "$repo" apply \
-              --exclude='.github/agent/**' \
-              --exclude='.github/workflows/agent-source-snapshot.yml' \
-              /tmp/386.patch &&
-            git -C "$repo" diff --check
-          } 2>&1 | tee /tmp/apply.log
-          echo "${PIPESTATUS[0]}" > /tmp/apply.rc
-          exit 0
+          git -C "$repo" apply --check \
+            --exclude='.github/agent/**' \
+            --exclude='.github/workflows/agent-source-snapshot.yml' \
+            /tmp/386.patch
+          git -C "$repo" apply \
+            --exclude='.github/agent/**' \
+            --exclude='.github/workflows/agent-source-snapshot.yml' \
+            /tmp/386.patch
+          git -C "$repo" diff --check
       - name: Compile staged CUDA backend
         shell: bash
         run: |
           repo=/__w/xtbloom/xtbloom
-          apply_rc="$(cat /tmp/apply.rc)"
-          if [ "$apply_rc" -ne 0 ]; then
-            cp /tmp/apply.log /tmp/cuda-build.log
-            echo "$apply_rc" > /tmp/cuda-build.rc
-            exit 0
-          fi
           set +e
           set -o pipefail
           {
@@ -65,22 +82,27 @@ jobs:
               -DCMAKE_CUDA_ARCHITECTURES=80 &&
             cmake --build "$repo/build-agent" --target xtbloom_cuda_backend --parallel 2
           } 2>&1 | tee /tmp/cuda-build.log
-          echo "${PIPESTATUS[0]}" > /tmp/cuda-build.rc
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -eq 0 ]; then
+            echo success > /tmp/state
+            echo 'GFN1 CUDA staged source compiles with CUDA 12.8' > /tmp/description
+          else
+            echo failure > /tmp/state
+            grep -m1 -E '(^|: )(fatal error|error:|FAILED:)' /tmp/cuda-build.log \
+              | sed 's/[[:space:]]\+/ /g' | cut -c1-135 > /tmp/description || true
+            if [ ! -s /tmp/description ]; then
+              echo "GFN1 CUDA staged compile failed (rc=$rc)" > /tmp/description
+            fi
+          fi
+          echo "$rc" > /tmp/rc
           exit 0
       - name: Report compile status
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          rc="$(cat /tmp/cuda-build.rc)"
-          if [ "$rc" -eq 0 ]; then
-            state=success
-            description='GFN1 CUDA staged source compiles with CUDA 12.8'
-          else
-            state=failure
-            description="GFN1 CUDA staged compile failed (rc=$rc)"
-          fi
-          export state description
+          export state="$(cat /tmp/state)"
+          export description="$(cat /tmp/description)"
           python3 - <<'PY'
           import json, os, urllib.request
           body = json.dumps({
@@ -103,23 +125,4 @@ jobs:
               if response.status != 201:
                   raise SystemExit(f"unexpected status API response: {response.status}")
           PY
-      - name: Publish result branch
-        shell: bash
-        run: |
-          repo=/__w/xtbloom/xtbloom
-          cd "$repo"
-          git config user.name "njzjz-bot"
-          git config user.email "48687836+njzjz-bot@users.noreply.github.com"
-          rc="$(cat /tmp/cuda-build.rc)"
-          rm -rf build-agent .github/agent .github/workflows/agent-source-snapshot.yml
-          if [ "$rc" -ne 0 ]; then
-            mkdir -p .agent-diagnostics
-            cp /tmp/cuda-build.log .agent-diagnostics/cuda-build.log
-          fi
-          git add -A
-          git commit -m "feat: stage GFN1 CUDA execution" \
-            -m "CUDA compile status: $rc" \
-            -m "Agent: ChatGPT" \
-            -m "Model: GPT-5.6 Sol"
-          git push --force origin HEAD:agent/386-cuda-result
-          exit "$rc"
+          exit "$(cat /tmp/rc)"
