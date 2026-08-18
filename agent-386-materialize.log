@@ -1,0 +1,23 @@
+=== decode base ===
+21172 /tmp/base.b64
+base64_rc=0 gzip_bytes=15878
+gzip_test_rc=0
+patch_bytes=95075
+=== decode delta ===
+2740 /tmp/delta.b64
+base64_rc=0 gzip_bytes=2054
+gzip_test_rc=0
+patch_bytes=7880
+=== decode extra ===
+1492 /tmp/extra.b64
+base64_rc=0 gzip_bytes=1118
+gzip_test_rc=0
+patch_bytes=3866
+=== decode runtime ===
+8116 /tmp/runtime.b64
+base64_rc=0 gzip_bytes=6086
+
+gzip: /tmp/runtime.gz: invalid compressed data--crc error
+gzip_test_rc=1
+FAILED_STAGE=runtime GZIP
+HEAD is now at 988225c ci: stage verified issue 386 patch chain
